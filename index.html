@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Returning to your calendar</title>
+<style>
+  body { margin: 0; font: 16px/1.45 system-ui, -apple-system, sans-serif; color: #111; background: #fff; }
+  main { max-width: 440px; margin: 0 auto; padding: 48px 20px; }
+  h1 { font-size: 28px; margin: 0 0 12px; }
+  a { color: #111; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="t">Returning to your calendar…</h1>
+  <p id="m">One moment.</p>
+</main>
+<script>
+/*
+ * OAuth redirect relay for E-ink Calendar devices.
+ * Google only redirects to public HTTPS URLs, but the device lives at a private IP.
+ * This static page receives ?code&state and forwards the SAME browser back to the
+ * device on the local network. It never stores or sends anything anywhere else.
+ * state = <nonce>.<base64url("http://192.168.x.y[:port]")>
+ */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var state = q.get('state') || '';
+  var part = state.split('.')[1] || '';
+  var base = '';
+  try {
+    base = atob(part.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((part.length + 3) % 4));
+  } catch (e) { base = ''; }
+
+  function isPrivate(u) {
+    var m;
+    try { m = new URL(u); } catch (e) { return false; }
+    if (m.protocol !== 'http:' || m.pathname !== '/' || m.search || m.hash || m.username) return false;
+    var h = m.hostname;
+    if (h === 'localhost' || /\.local$/.test(h)) return true;
+    var p = h.split('.').map(Number);
+    if (p.length !== 4 || p.some(function (n) { return isNaN(n) || n < 0 || n > 255; })) return false;
+    return p[0] === 10 || p[0] === 127 || (p[0] === 192 && p[1] === 168) ||
+           (p[0] === 172 && p[1] >= 16 && p[1] <= 31);
+  }
+
+  if (!isPrivate(base + '/')) {
+    document.getElementById('t').textContent = 'Something went wrong';
+    document.getElementById('m').textContent = 'This link did not come from a calendar on your network. Start again from the calendar’s page.';
+    return;
+  }
+  var target = base.replace(/\/$/, '') + '/oauth/callback' + location.search;
+  document.getElementById('m').innerHTML = 'If nothing happens, make sure your phone is on the same Wi-Fi as the calendar, then <a id="go">tap here</a>.';
+  document.getElementById('go').href = target;
+  location.replace(target);
+})();
+</script>
+</body>
+</html>
